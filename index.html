@@ -3,11 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Virtues" />
   <title>The Virtues Practice</title>
-  <link rel="manifest" href="data:application/json;base64,eyJuYW1lIjoiVGhlIFZpcnR1ZXMgUHJhY3RpY2UiLCJzaG9ydF9uYW1lIjoiVmlydHVlcyIsInN0YXJ0X3VybCI6Ii8iLCJkaXNwbGF5Ijoic3RhbmRhbG9uZSIsImJhY2tncm91bmRfY29sb3IiOiIjRkFGN0YyIiwidGhlbWVfY29sb3IiOiIjRDk3NzA2In0=" />
   <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
@@ -29,11 +28,11 @@
     // ══════════════════════════════════════════════
     // CONFIGURATION — Replace these with your Supabase project values
     // ══════════════════════════════════════════════
-    const SUPABASE_URL = 'https://odlazyzumtzxidpneknz.supabase.co';
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9kbGF6eXp1bXR6eGlkcG5la256Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI0ODY1NjMsImV4cCI6MjA4ODA2MjU2M30.zCAurnc8DpnYaKAuGJGZdJITxV3zCkrSEZTLOwZyBNE';
+    var SUPABASE_URL = 'https://odlazyzumtzxidpneknz.supabase.co';
+    var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9kbGF6eXp1bXR6eGlkcG5la256Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI0ODY1NjMsImV4cCI6MjA4ODA2MjU2M30.zCAurnc8DpnYaKAuGJGZdJITxV3zCkrSEZTLOwZyBNE';
     // ══════════════════════════════════════════════
 
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   </script>
   <script type="text/babel">
     const { useState, useEffect, useCallback, useRef } = React;
@@ -70,31 +69,26 @@
       return Array.from({ length: 7 }, (_, i) => { const dd = new Date(mon); dd.setDate(mon.getDate() + i); return dd.toISOString().split("T")[0]; });
     }
 
-    // ── Supabase data layer ──────────────────────
     async function dbLoadAll(userId) {
       const [settingsRes, entriesRes, reviewsRes] = await Promise.all([
-        supabase.from("user_settings").select("*").eq("user_id", userId).maybeSingle(),
-        supabase.from("daily_entries").select("*").eq("user_id", userId),
-        supabase.from("weekly_reviews").select("*").eq("user_id", userId),
+        sb.from("user_settings").select("*").eq("user_id", userId).maybeSingle(),
+        sb.from("daily_entries").select("*").eq("user_id", userId),
+        sb.from("weekly_reviews").select("*").eq("user_id", userId),
       ]);
-
       let settings = settingsRes.data;
       if (!settings) {
-        const { data } = await supabase.from("user_settings").insert({ user_id: userId, values_list: DEFAULT_VALUES, pinned_value_id: null }).select().single();
+        const { data } = await sb.from("user_settings").insert({ user_id: userId, values_list: DEFAULT_VALUES, pinned_value_id: null }).select().single();
         settings = data;
       }
-
       const entries = {};
       (entriesRes.data || []).forEach(e => {
         entries[e.date] = {
           rotatingScore: e.rotating_score, rotatingMoment: e.rotating_moment || "",
           pinnedScore: e.pinned_score || 5, pinnedMoment: e.pinned_moment || "",
           focusValue: e.rotating_value_name, focusValueId: e.rotating_value_id,
-          pinnedValue: e.pinned_value_name, pinnedValueId: e.pinned_value_id,
-          date: e.date,
+          pinnedValue: e.pinned_value_name, pinnedValueId: e.pinned_value_id, date: e.date,
         };
       });
-
       const reviews = {};
       (reviewsRes.data || []).forEach(r => {
         reviews[r.week_key] = {
@@ -105,22 +99,17 @@
           weekKey: r.week_key, cycle: r.cycle_number,
         };
       });
-
       return {
         values: (settings.values_list && settings.values_list.length > 0) ? settings.values_list : DEFAULT_VALUES,
-        pinnedValueId: settings.pinned_value_id,
-        entries, reviews,
+        pinnedValueId: settings.pinned_value_id, entries, reviews,
       };
     }
 
     async function dbSaveSettings(userId, valuesList, pinnedValueId) {
-      await supabase.from("user_settings").upsert({
-        user_id: userId, values_list: valuesList, pinned_value_id: pinnedValueId, updated_at: new Date().toISOString(),
-      });
+      await sb.from("user_settings").upsert({ user_id: userId, values_list: valuesList, pinned_value_id: pinnedValueId, updated_at: new Date().toISOString() });
     }
-
     async function dbSaveDailyEntry(userId, entry) {
-      await supabase.from("daily_entries").upsert({
+      await sb.from("daily_entries").upsert({
         user_id: userId, date: entry.date,
         rotating_value_id: entry.focusValueId, rotating_value_name: entry.focusValue,
         rotating_score: entry.rotatingScore, rotating_moment: entry.rotatingMoment,
@@ -129,20 +118,16 @@
         updated_at: new Date().toISOString(),
       }, { onConflict: "user_id,date" });
     }
-
     async function dbSaveWeeklyReview(userId, review) {
-      await supabase.from("weekly_reviews").upsert({
+      await sb.from("weekly_reviews").upsert({
         user_id: userId, week_key: review.weekKey,
         focus_value_id: review.focusValueId, focus_value_name: review.focusValue,
-        cycle_number: review.cycle,
-        learned: review.learned, differently: review.differently,
-        anchor_type: review.anchorType, anchor_text: review.anchorText,
-        pulse_scores: review.pulseScores,
+        cycle_number: review.cycle, learned: review.learned, differently: review.differently,
+        anchor_type: review.anchorType, anchor_text: review.anchorText, pulse_scores: review.pulseScores,
         updated_at: new Date().toISOString(),
       }, { onConflict: "user_id,week_key" });
     }
 
-    // ── Components ───────────────────────────────
     function ScoreSlider({ value, onChange, color = "#D97706" }) {
       const pct = ((value - 1) / 9) * 100;
       return (
@@ -166,8 +151,7 @@
       );
     }
 
-    // ── Auth Screen ──────────────────────────────
-    function AuthScreen({ onAuth }) {
+    function AuthScreen() {
       const [mode, setMode] = useState("login");
       const [email, setEmail] = useState("");
       const [password, setPassword] = useState("");
@@ -179,58 +163,43 @@
         setError(""); setLoading(true);
         try {
           if (mode === "signup") {
-            const { data, error: err } = await supabase.auth.signUp({ email, password });
+            const { data, error: err } = await sb.auth.signUp({ email, password });
             if (err) throw err;
-            if (data.user && !data.session) {
-              setConfirmSent(true);
-            }
+            if (data.user && !data.session) setConfirmSent(true);
           } else {
-            const { error: err } = await supabase.auth.signInWithPassword({ email, password });
+            const { error: err } = await sb.auth.signInWithPassword({ email, password });
             if (err) throw err;
           }
-        } catch (e) {
-          setError(e.message);
-        }
+        } catch (e) { setError(e.message); }
         setLoading(false);
       };
 
-      const S = {
-        input: { width: "100%", padding: "14px 16px", borderRadius: 8, border: "1px solid #DDD5CA", fontFamily: "'EB Garamond', Georgia, serif", fontSize: 16, color: "#3D3529", background: "#FEFDFB", outline: "none", boxSizing: "border-box", marginBottom: 12 },
-        primary: { width: "100%", padding: "14px 24px", borderRadius: 8, border: "none", background: "#D97706", color: "#FFF", fontFamily: "'EB Garamond', Georgia, serif", fontSize: 16, fontWeight: 600, cursor: "pointer", letterSpacing: "0.02em" },
-      };
+      const SI = { width: "100%", padding: "14px 16px", borderRadius: 8, border: "1px solid #DDD5CA", fontFamily: "'EB Garamond', Georgia, serif", fontSize: 16, color: "#3D3529", background: "#FEFDFB", outline: "none", boxSizing: "border-box", marginBottom: 12 };
+      const SP = { width: "100%", padding: "14px 24px", borderRadius: 8, border: "none", background: "#D97706", color: "#FFF", fontFamily: "'EB Garamond', Georgia, serif", fontSize: 16, fontWeight: 600, cursor: "pointer", letterSpacing: "0.02em" };
 
-      if (confirmSent) {
-        return (
-          <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#FAF7F2", padding: 20 }}>
-            <div style={{ maxWidth: 400, width: "100%", textAlign: "center" }}>
-              <div style={{ fontSize: 40, marginBottom: 16 }}>{"\u2709\uFE0F"}</div>
-              <h2 style={{ fontFamily: "'EB Garamond', Georgia, serif", fontSize: 24, fontWeight: 400, fontStyle: "italic", marginBottom: 12 }}>Check your email</h2>
-              <p style={{ fontFamily: "'EB Garamond', Georgia, serif", fontSize: 16, color: "#6B5E52", lineHeight: 1.6 }}>
-                We sent a confirmation link to <strong>{email}</strong>. Click it to activate your account, then come back here and log in.
-              </p>
-              <button onClick={() => { setConfirmSent(false); setMode("login"); }} style={{ ...S.primary, marginTop: 20 }}>Back to login</button>
-            </div>
+      if (confirmSent) return (
+        <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#FAF7F2", padding: 20 }}>
+          <div style={{ maxWidth: 400, width: "100%", textAlign: "center" }}>
+            <div style={{ fontSize: 40, marginBottom: 16 }}>{"\u2709\uFE0F"}</div>
+            <h2 style={{ fontFamily: "'EB Garamond', Georgia, serif", fontSize: 24, fontWeight: 400, fontStyle: "italic", marginBottom: 12 }}>Check your email</h2>
+            <p style={{ fontFamily: "'EB Garamond', Georgia, serif", fontSize: 16, color: "#6B5E52", lineHeight: 1.6 }}>We sent a confirmation link to <strong>{email}</strong>. Click it, then come back and log in.</p>
+            <button onClick={() => { setConfirmSent(false); setMode("login"); }} style={{ ...SP, marginTop: 20 }}>Back to login</button>
           </div>
-        );
-      }
+        </div>
+      );
 
       return (
         <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#FAF7F2", padding: 20 }}>
           <div style={{ maxWidth: 400, width: "100%" }}>
             <div style={{ textAlign: "center", marginBottom: 32 }}>
               <h1 style={{ fontFamily: "'EB Garamond', Georgia, serif", fontSize: 36, fontWeight: 400, fontStyle: "italic", marginBottom: 8 }}>The Virtues Practice</h1>
-              <p style={{ fontFamily: "'EB Garamond', Georgia, serif", fontSize: 16, color: "#8B7E74" }}>
-                {mode === "login" ? "Welcome back." : "Begin your practice."}
-              </p>
+              <p style={{ fontFamily: "'EB Garamond', Georgia, serif", fontSize: 16, color: "#8B7E74" }}>{mode === "login" ? "Welcome back." : "Begin your practice."}</p>
             </div>
             <div style={{ background: "#FFF", borderRadius: 12, padding: 24, border: "1px solid #EDE8E0", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" style={S.input} />
-              <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" style={S.input}
-                onKeyDown={e => { if (e.key === "Enter") handleSubmit(); }} />
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" style={SI} />
+              <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" style={SI} onKeyDown={e => { if (e.key === "Enter") handleSubmit(); }} />
               {error && <div style={{ color: "#DC2626", fontSize: 14, marginBottom: 12, fontFamily: "'EB Garamond', Georgia, serif" }}>{error}</div>}
-              <button onClick={handleSubmit} disabled={loading || !email || !password} style={{ ...S.primary, opacity: (loading || !email || !password) ? 0.5 : 1 }}>
-                {loading ? "..." : mode === "login" ? "Log in" : "Create account"}
-              </button>
+              <button onClick={handleSubmit} disabled={loading || !email || !password} style={{ ...SP, opacity: (loading || !email || !password) ? 0.5 : 1 }}>{loading ? "..." : mode === "login" ? "Log in" : "Create account"}</button>
             </div>
             <div style={{ textAlign: "center", marginTop: 16 }}>
               <button onClick={() => { setMode(mode === "login" ? "signup" : "login"); setError(""); }}
@@ -243,7 +212,6 @@
       );
     }
 
-    // ── Main App ─────────────────────────────────
     function App() {
       const [user, setUser] = useState(null);
       const [authChecked, setAuthChecked] = useState(false);
@@ -267,30 +235,20 @@
       valuesRef.current = values;
       pinnedRef.current = pinnedValueId;
 
-      // Auth listener
       useEffect(() => {
-        supabase.auth.getSession().then(({ data: { session } }) => {
-          setUser(session?.user || null);
-          setAuthChecked(true);
-        });
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-          setUser(session?.user || null);
-        });
+        sb.auth.getSession().then(({ data: { session } }) => { setUser(session?.user || null); setAuthChecked(true); });
+        const { data: { subscription } } = sb.auth.onAuthStateChange((_event, session) => { setUser(session?.user || null); });
         return () => subscription.unsubscribe();
       }, []);
 
-      // Load data when user authenticates
       useEffect(() => {
         if (!user) { setLoaded(false); return; }
         (async () => {
           try {
             const data = await dbLoadAll(user.id);
-            setValues(data.values);
-            valuesRef.current = data.values;
-            setPinnedValueId(data.pinnedValueId);
-            pinnedRef.current = data.pinnedValueId;
-            setSavedEntries(data.entries);
-            setSavedReviews(data.reviews);
+            setValues(data.values); valuesRef.current = data.values;
+            setPinnedValueId(data.pinnedValueId); pinnedRef.current = data.pinnedValueId;
+            setSavedEntries(data.entries); setSavedReviews(data.reviews);
             const t = todayStr();
             if (data.entries[t]) setDailyEntry(data.entries[t]);
             const wk = getWeekDates(t)[0];
@@ -309,61 +267,35 @@
       const weekDates = getWeekDates(today);
       const weekScores = weekDates.map(d => savedEntries[d]?.rotatingScore).filter(Boolean);
 
-      const saveValuesList = useCallback(async (nv) => {
-        setValues(nv);
-        valuesRef.current = nv;
-        if (user) await dbSaveSettings(user.id, nv, pinnedRef.current);
-      }, [user]);
-
-      const savePinnedValue = useCallback(async (id) => {
-        setPinnedValueId(id);
-        pinnedRef.current = id;
-        if (user) await dbSaveSettings(user.id, valuesRef.current, id);
-      }, [user]);
+      const saveValuesList = useCallback(async (nv) => { setValues(nv); valuesRef.current = nv; if (user) await dbSaveSettings(user.id, nv, pinnedRef.current); }, [user]);
+      const savePinnedValue = useCallback(async (id) => { setPinnedValueId(id); pinnedRef.current = id; if (user) await dbSaveSettings(user.id, valuesRef.current, id); }, [user]);
 
       const doSaveDaily = useCallback(async () => {
         setSaving(true);
-        const entry = {
-          ...dailyEntry, focusValue: focusValue.name, focusValueId: focusValue.id,
-          pinnedValue: hasPinned ? pinnedValue.name : null, pinnedValueId: hasPinned ? pinnedValue.id : null, date: today,
-        };
-        const updated = { ...savedEntries, [today]: entry };
-        setSavedEntries(updated);
+        const entry = { ...dailyEntry, focusValue: focusValue.name, focusValueId: focusValue.id, pinnedValue: hasPinned ? pinnedValue.name : null, pinnedValueId: hasPinned ? pinnedValue.id : null, date: today };
+        setSavedEntries(prev => ({ ...prev, [today]: entry }));
         if (user) await dbSaveDailyEntry(user.id, entry);
-        setSaving(false);
-        setShowSaved(true);
+        setSaving(false); setShowSaved(true);
         setTimeout(() => { setShowSaved(false); setView("home"); }, 1200);
-      }, [dailyEntry, savedEntries, today, focusValue, pinnedValue, hasPinned, user]);
+      }, [dailyEntry, today, focusValue, pinnedValue, hasPinned, user]);
 
       const doSaveSunday = useCallback(async () => {
         setSaving(true);
         const wk = weekDates[0];
         const review = { ...sundayReview, focusValue: focusValue.name, focusValueId: focusValue.id, weekKey: wk, cycle: cycleNum };
-        const updated = { ...savedReviews, [wk]: review };
-        setSavedReviews(updated);
+        setSavedReviews(prev => ({ ...prev, [wk]: review }));
         if (user) await dbSaveWeeklyReview(user.id, review);
-        setSaving(false);
-        setShowSaved(true);
+        setSaving(false); setShowSaved(true);
         setTimeout(() => { setShowSaved(false); setView("home"); }, 1200);
-      }, [sundayReview, savedReviews, weekDates, focusValue, cycleNum, user]);
+      }, [sundayReview, weekDates, focusValue, cycleNum, user]);
 
-      const getValueHistory = (val) => {
-        const entries = Object.values(savedEntries).filter(e =>
-          e.focusValueId === val.id || e.focusValue === val.name || e.pinnedValueId === val.id || e.pinnedValue === val.name
-        ).sort((a, b) => a.date.localeCompare(b.date));
-        const reviews = Object.values(savedReviews).filter(r => r.focusValueId === val.id || r.focusValue === val.name).sort((a, b) => a.weekKey.localeCompare(b.weekKey));
-        return { entries, reviews };
-      };
-
+      const getValueHistory = (val) => ({
+        entries: Object.values(savedEntries).filter(e => e.focusValueId === val.id || e.focusValue === val.name || e.pinnedValueId === val.id || e.pinnedValue === val.name).sort((a, b) => a.date.localeCompare(b.date)),
+        reviews: Object.values(savedReviews).filter(r => r.focusValueId === val.id || r.focusValue === val.name).sort((a, b) => a.weekKey.localeCompare(b.weekKey)),
+      });
       const getValuePulseHistory = (vn) => Object.values(savedReviews).filter(r => r.pulseScores?.[vn]).map(r => ({ week: r.weekKey, score: r.pulseScores[vn] })).sort((a, b) => a.week.localeCompare(b.week));
+      const retiredNames = [...new Set([...Object.values(savedEntries).map(e => e.focusValue), ...Object.values(savedEntries).map(e => e.pinnedValue).filter(Boolean), ...Object.values(savedReviews).map(r => r.focusValue), ...Object.values(savedReviews).flatMap(r => Object.keys(r.pulseScores || {}))])].filter(n => n && !new Set(values.map(v => v.name)).has(n));
 
-      const historicalNames = new Set([
-        ...Object.values(savedEntries).map(e => e.focusValue), ...Object.values(savedEntries).map(e => e.pinnedValue).filter(Boolean),
-        ...Object.values(savedReviews).map(r => r.focusValue), ...Object.values(savedReviews).flatMap(r => Object.keys(r.pulseScores || {})),
-      ]);
-      const retiredNames = [...historicalNames].filter(n => n && !new Set(values.map(v => v.name)).has(n));
-
-      // Auth gate
       if (!authChecked) return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#FAF7F2" }}><div style={{ fontSize: 18, color: "#8B7E74", fontFamily: "'EB Garamond', Georgia, serif" }}>Loading...</div></div>;
       if (!user) return <AuthScreen />;
       if (!loaded) return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#FAF7F2" }}><div style={{ fontSize: 18, color: "#8B7E74", fontFamily: "'EB Garamond', Georgia, serif" }}>Loading your practice...</div></div>;
@@ -381,7 +313,6 @@
       };
       const PINE = "#1B7340";
 
-      // ─── Pin Picker ────────────────────────
       const renderPinPicker = () => (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 100, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={() => setShowPinPicker(false)}>
           <div style={{ background: "#FAF7F2", borderRadius: "16px 16px 0 0", padding: "24px 20px calc(20px + env(safe-area-inset-bottom))", maxWidth: 480, width: "100%", maxHeight: "70vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
@@ -403,7 +334,6 @@
         </div>
       );
 
-      // ─── Home ──────────────────────────────
       const renderHome = () => (
         <React.Fragment>
           <div style={{ paddingTop: 48, paddingBottom: 8 }}>
@@ -411,7 +341,7 @@
               <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.15em", color: "#B0A89E" }}>Cycle {cycleNum} {"\u00B7"} Week {weekInCycle} of {values.length}</div>
               <div style={{ display: "flex", gap: 8 }}>
                 <button onClick={() => setView("manage")} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, color: "#B0A89E", fontFamily: "'EB Garamond', Georgia, serif" }}>{"\u2699"}</button>
-                <button onClick={async () => { await supabase.auth.signOut(); }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, color: "#B0A89E", fontFamily: "'EB Garamond', Georgia, serif" }}>Log out</button>
+                <button onClick={async () => { await sb.auth.signOut(); }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, color: "#B0A89E", fontFamily: "'EB Garamond', Georgia, serif" }}>Log out</button>
               </div>
             </div>
             <h1 style={{ fontSize: 32, fontWeight: 400, margin: "4px 0 0", lineHeight: 1.2, fontStyle: "italic" }}>The Virtues Practice</h1>
@@ -446,8 +376,7 @@
             ) : (<button onClick={() => setView("daily")} style={{ ...S.primary, marginTop: 4 }}>Begin today's check-in</button>)}
           </div>
           {isSunday && <div style={{ ...S.card, border: "1px solid #C4B5A0", background: "#FEFCF8" }}><div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.15em", color: "#D97706", marginBottom: 8 }}>{"\u2600\uFE0F"} Sunday Values Review</div><div style={{ fontSize: 16, marginBottom: 12, lineHeight: 1.5 }}>Time for your weekly reflection.</div><button onClick={() => setView("sunday")} style={S.primary}>Start Sunday Review</button></div>}
-          <div style={S.card}>
-            <div style={S.label}>This Week</div>
+          <div style={S.card}><div style={S.label}>This Week</div>
             <div style={{ display: "flex", gap: 4 }}>
               {weekDates.map((d, i) => { const sc = savedEntries[d]?.rotatingScore; const it = d === today; return (
                 <div key={d} style={{ flex: 1, textAlign: "center" }}><div style={{ fontSize: 11, color: it ? "#D97706" : "#B0A89E", fontWeight: it ? 700 : 400, marginBottom: 6 }}>{["M","T","W","T","F","S","S"][i]}</div>
@@ -463,7 +392,6 @@
         </React.Fragment>
       );
 
-      // ─── Daily ─────────────────────────────
       const renderDaily = () => (
         <React.Fragment>
           <div style={{ paddingTop: 48, paddingBottom: 8 }}><button onClick={() => setView("home")} style={S.back}>{"\u2190"} Back</button><div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.15em", color: "#B0A89E", marginBottom: 4 }}>{formatDate(today)} {"\u00B7"} Daily Check-in</div></div>
@@ -488,7 +416,6 @@
         </React.Fragment>
       );
 
-      // ─── Sunday ────────────────────────────
       const renderSunday = () => (
         <React.Fragment>
           <div style={{ paddingTop: 48, paddingBottom: 8 }}><button onClick={() => setView("home")} style={S.back}>{"\u2190"} Back</button><div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.15em", color: "#D97706", marginBottom: 4 }}>{"\u2600\uFE0F"} Sunday Values Review</div><h2 style={{ fontSize: 26, fontWeight: 400, margin: "4px 0 0", fontStyle: "italic" }}>Week of {focusValue.name}</h2></div>
@@ -531,14 +458,11 @@
         </React.Fragment>
       );
 
-      // ─── Insights ──────────────────────────
       const renderInsights = () => {
         const allE = Object.values(savedEntries), allR = Object.values(savedReviews);
         const avgs = [...new Set([...values.map(v => v.name), ...retiredNames])].map(name => {
-          const v = values.find(val => val.name === name);
-          const ph = getValuePulseHistory(name);
-          if (!ph.length) return null;
-          return { name, emoji: v ? v.emoji : "\u{1F4E6}", avg: ph.reduce((s, p) => s + p.score, 0) / ph.length, retired: !v };
+          const v = values.find(val => val.name === name); const ph = getValuePulseHistory(name);
+          return ph.length ? { name, emoji: v ? v.emoji : "\u{1F4E6}", avg: ph.reduce((s, p) => s + p.score, 0) / ph.length, retired: !v } : null;
         }).filter(Boolean).sort((a, b) => b.avg - a.avg);
         return (
           <React.Fragment>
@@ -563,7 +487,6 @@
         );
       };
 
-      // ─── History ───────────────────────────
       const renderHistory = () => {
         const allVals = [...values, ...retiredNames.map(n => ({ id: n, name: n, emoji: "\u{1F4E6}", retired: true }))];
         const sel = selectedHistoryValue ? allVals.find(v => v.name === selectedHistoryValue) : null;
@@ -609,7 +532,6 @@
         );
       };
 
-      // ─── Manage ────────────────────────────
       const renderManage = () => (
         <React.Fragment>
           <div style={{ paddingTop: 48, paddingBottom: 8 }}><button onClick={() => setView("home")} style={S.back}>{"\u2190"} Back</button><h2 style={{ fontSize: 26, fontWeight: 400, margin: "4px 0 0", fontStyle: "italic" }}>Manage Values</h2><div style={{ fontSize: 13, color: "#8B7E74", marginTop: 4 }}>{values.length} values {"\u00B7"} ~{(52 / values.length).toFixed(1)} cycles/year</div></div>
