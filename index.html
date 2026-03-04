@@ -41,14 +41,14 @@
       { id: "kindness", name: "Kindness", emoji: "\u{1F932}", description: "Treating others with warmth, assuming best intent, understanding their experience" },
       { id: "joy", name: "Joy", emoji: "\u2726", description: "Finding and creating moments of delight" },
       { id: "curiosity", name: "Curiosity", emoji: "\u{1F52D}", description: "Pursuing understanding with wonder" },
-      { id: "discipline", name: "Discipline", emoji: "\u26F0\uFE0F", description: "Doing what matters consistently, especially when it\u2019s hard" },
+      { id: "discipline", name: "Discipline", emoji: "\u26F0\uFE0F", description: "Doing what matters consistently, especially when it's hard" },
       { id: "intensity", name: "Intensity", emoji: "\u{1F525}", description: "Ruthlessly give it your all and then some" },
       { id: "humor", name: "Humor", emoji: "\u{1F604}", description: "Moving with playfulness and raucous laughter" },
       { id: "growth", name: "Growth", emoji: "\u{1F331}", description: "Continuously becoming a better version of yourself" },
       { id: "courage", name: "Courage", emoji: "\u{1F981}", description: "Acting despite fear, leaning into discomfort" },
       { id: "presence", name: "Presence", emoji: "\u{1F9D8}", description: "Being fully here, not elsewhere" },
       { id: "ambition", name: "Ambition", emoji: "\u{1F680}", description: "Going HUGE" },
-      { id: "humility", name: "Humility", emoji: "\u{1F30A}", description: "Staying open, embracing others\u2019 ideas, realizing you might be wrong" },
+      { id: "humility", name: "Humility", emoji: "\u{1F30A}", description: "Staying open, embracing others' ideas, realizing you might be wrong" },
       { id: "proactivity", name: "Proactivity", emoji: "\u26A1", description: "Taking massive ownership" },
       { id: "strength", name: "Strength", emoji: "\u{1F4AA}", description: "Making your body a weapon and pushing it hard" },
       { id: "love", name: "Love", emoji: "\u2764\uFE0F", description: "Loving those around me with all my heart" },
@@ -57,16 +57,25 @@
 
     const CYCLE_START = "2026-03-02";
 
-    function getWeekNumber(d) { return Math.floor((new Date(d) - new Date(CYCLE_START)) / 604800000); }
+    function localToday() {
+      const d = new Date();
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+
+    function getWeekNumber(d) { return Math.floor((new Date(d + "T12:00:00") - new Date(CYCLE_START + "T12:00:00")) / 604800000); }
     function getFocusValue(d, v) { const w = getWeekNumber(d); return (w < 0 || !v.length) ? v[0] : v[w % v.length]; }
     function getCycleNumber(d, v) { return v.length ? Math.floor(getWeekNumber(d) / v.length) + 1 : 1; }
     function getWeekInCycle(d, v) { return v.length ? (getWeekNumber(d) % v.length) + 1 : 1; }
-    function todayStr() { return new Date().toISOString().split("T")[0]; }
     function getDayOfWeek(d) { return new Date(d + "T12:00:00").getDay(); }
     function formatDate(d) { return new Date(d + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }); }
     function getWeekDates(d) {
       const dt = new Date(d + "T12:00:00"); const mon = new Date(dt); mon.setDate(dt.getDate() - ((dt.getDay() + 6) % 7));
-      return Array.from({ length: 7 }, (_, i) => { const dd = new Date(mon); dd.setDate(mon.getDate() + i); return dd.toISOString().split("T")[0]; });
+      return Array.from({ length: 7 }, (_, i) => { const dd = new Date(mon); dd.setDate(mon.getDate() + i); return dd.getFullYear() + '-' + String(dd.getMonth() + 1).padStart(2, '0') + '-' + String(dd.getDate()).padStart(2, '0'); });
+    }
+    function addDays(d, n) {
+      const dt = new Date(d + "T12:00:00");
+      dt.setDate(dt.getDate() + n);
+      return dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0') + '-' + String(dt.getDate()).padStart(2, '0');
     }
 
     async function dbLoadAll(userId) {
@@ -204,7 +213,7 @@
             <div style={{ textAlign: "center", marginTop: 16 }}>
               <button onClick={() => { setMode(mode === "login" ? "signup" : "login"); setError(""); }}
                 style={{ background: "none", border: "none", fontFamily: "'EB Garamond', Georgia, serif", fontSize: 15, color: "#D97706", cursor: "pointer" }}>
-                {mode === "login" ? "Don\u2019t have an account? Sign up" : "Already have an account? Log in"}
+                {mode === "login" ? "Don't have an account? Sign up" : "Already have an account? Log in"}
               </button>
             </div>
           </div>
@@ -216,7 +225,8 @@
       const [user, setUser] = useState(null);
       const [authChecked, setAuthChecked] = useState(false);
       const [view, setView] = useState("home");
-      const [today] = useState(todayStr());
+      const [today] = useState(localToday());
+      const [selectedDate, setSelectedDate] = useState(localToday());
       const [values, setValues] = useState(DEFAULT_VALUES);
       const [pinnedValueId, setPinnedValueId] = useState(null);
       const [dailyEntry, setDailyEntry] = useState({ rotatingScore: 5, rotatingMoment: "", pinnedScore: 5, pinnedMoment: "" });
@@ -249,7 +259,7 @@
             setValues(data.values); valuesRef.current = data.values;
             setPinnedValueId(data.pinnedValueId); pinnedRef.current = data.pinnedValueId;
             setSavedEntries(data.entries); setSavedReviews(data.reviews);
-            const t = todayStr();
+            const t = localToday();
             if (data.entries[t]) setDailyEntry(data.entries[t]);
             const wk = getWeekDates(t)[0];
             if (data.reviews[wk]) setSundayReview(data.reviews[wk]);
@@ -258,36 +268,65 @@
         })();
       }, [user]);
 
-      const focusValue = getFocusValue(today, values);
+      // Load entry for selected date when it changes or when entering daily view
+      useEffect(() => {
+        if (view === "daily" && loaded) {
+          const existing = savedEntries[selectedDate];
+          if (existing) {
+            setDailyEntry(existing);
+          } else {
+            setDailyEntry({ rotatingScore: 5, rotatingMoment: "", pinnedScore: 5, pinnedMoment: "" });
+          }
+        }
+      }, [selectedDate, view, loaded, savedEntries]);
+
+      const focusValueForToday = getFocusValue(today, values);
+      const focusValueForSelected = getFocusValue(selectedDate, values);
       const pinnedValue = pinnedValueId ? values.find(v => v.id === pinnedValueId) : null;
-      const hasPinned = pinnedValue && pinnedValue.id !== focusValue.id;
+      const hasPinnedForToday = pinnedValue && pinnedValue.id !== focusValueForToday.id;
+      const hasPinnedForSelected = pinnedValue && pinnedValue.id !== focusValueForSelected.id;
       const cycleNum = getCycleNumber(today, values);
       const weekInCycle = getWeekInCycle(today, values);
       const isSunday = getDayOfWeek(today) === 0;
       const weekDates = getWeekDates(today);
       const weekScores = weekDates.map(d => savedEntries[d]?.rotatingScore).filter(Boolean);
+      const isEditingExisting = !!savedEntries[selectedDate];
+      const isSelectedToday = selectedDate === today;
+
+      const openDailyForDate = (date) => {
+        if (date > today) return; // Can't go to future
+        setSelectedDate(date);
+        setView("daily");
+      };
 
       const saveValuesList = useCallback(async (nv) => { setValues(nv); valuesRef.current = nv; if (user) await dbSaveSettings(user.id, nv, pinnedRef.current); }, [user]);
       const savePinnedValue = useCallback(async (id) => { setPinnedValueId(id); pinnedRef.current = id; if (user) await dbSaveSettings(user.id, valuesRef.current, id); }, [user]);
 
       const doSaveDaily = useCallback(async () => {
         setSaving(true);
-        const entry = { ...dailyEntry, focusValue: focusValue.name, focusValueId: focusValue.id, pinnedValue: hasPinned ? pinnedValue.name : null, pinnedValueId: hasPinned ? pinnedValue.id : null, date: today };
-        setSavedEntries(prev => ({ ...prev, [today]: entry }));
+        const entry = {
+          ...dailyEntry,
+          focusValue: focusValueForSelected.name,
+          focusValueId: focusValueForSelected.id,
+          pinnedValue: hasPinnedForSelected ? pinnedValue.name : null,
+          pinnedValueId: hasPinnedForSelected ? pinnedValue.id : null,
+          date: selectedDate
+        };
+        setSavedEntries(prev => ({ ...prev, [selectedDate]: entry }));
         if (user) await dbSaveDailyEntry(user.id, entry);
         setSaving(false); setShowSaved(true);
         setTimeout(() => { setShowSaved(false); setView("home"); }, 1200);
-      }, [dailyEntry, today, focusValue, pinnedValue, hasPinned, user]);
+      }, [dailyEntry, selectedDate, focusValueForSelected, pinnedValue, hasPinnedForSelected, user]);
 
       const doSaveSunday = useCallback(async () => {
         setSaving(true);
         const wk = weekDates[0];
-        const review = { ...sundayReview, focusValue: focusValue.name, focusValueId: focusValue.id, weekKey: wk, cycle: cycleNum };
+        const review = { ...sundayReview, focusValue: focusValueForToday.name, focusValueId: focusValueForToday.id, weekKey: wk, cycle: cycleNum };
         setSavedReviews(prev => ({ ...prev, [wk]: review }));
         if (user) await dbSaveWeeklyReview(user.id, review);
         setSaving(false); setShowSaved(true);
         setTimeout(() => { setShowSaved(false); setView("home"); }, 1200);
-      }, [sundayReview, weekDates, focusValue, cycleNum, user]);
+      }, [sundayReview, weekDates, focusValueForToday, cycleNum, user]);
 
       const getValueHistory = (val) => ({
         entries: Object.values(savedEntries).filter(e => e.focusValueId === val.id || e.focusValue === val.name || e.pinnedValueId === val.id || e.pinnedValue === val.name).sort((a, b) => a.date.localeCompare(b.date)),
@@ -310,6 +349,8 @@
         label: { fontSize: 11, textTransform: "uppercase", letterSpacing: "0.15em", color: "#B0A89E", marginBottom: 12 },
         back: { background: "none", border: "none", cursor: "pointer", color: "#8B7E74", fontFamily: "'EB Garamond', Georgia, serif", fontSize: 14, padding: 0, marginBottom: 8 },
         input: { width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #DDD5CA", fontFamily: "'EB Garamond', Georgia, serif", fontSize: 15, color: "#3D3529", background: "#FEFDFB", outline: "none", boxSizing: "border-box" },
+        navArrow: { background: "none", border: "none", cursor: "pointer", fontSize: 20, color: "#8B7E74", padding: "4px 12px", fontFamily: "'EB Garamond', Georgia, serif" },
+        navArrowDisabled: { background: "none", border: "none", fontSize: 20, color: "#DDD5CA", padding: "4px 12px", fontFamily: "'EB Garamond', Georgia, serif", cursor: "default" },
       };
       const PINE = "#1B7340";
 
@@ -349,20 +390,20 @@
           <div style={{ ...S.card, background: "linear-gradient(135deg, #FFFBF0 0%, #FFF8ED 100%)", border: "1px solid #EDD9B3", marginTop: 20 }}>
             <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.15em", color: "#B0A89E", marginBottom: 12 }}>Rotating Focus</div>
             <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
-              <span style={{ fontSize: 28 }}>{focusValue.emoji}</span>
-              <div><div style={{ fontSize: 26, fontWeight: 600, color: "#D97706" }}>{focusValue.name}</div><div style={{ fontSize: 14, color: "#8B7E74", fontStyle: "italic" }}>{focusValue.description}</div></div>
+              <span style={{ fontSize: 28 }}>{focusValueForToday.emoji}</span>
+              <div><div style={{ fontSize: 26, fontWeight: 600, color: "#D97706" }}>{focusValueForToday.name}</div><div style={{ fontSize: 14, color: "#8B7E74", fontStyle: "italic" }}>{focusValueForToday.description}</div></div>
             </div>
             {weekScores.length > 0 && <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid #EDD9B3", display: "flex", justifyContent: "space-between", alignItems: "center" }}><span style={{ fontSize: 13, color: "#8B7E74" }}>This week</span><Sparkline scores={weekScores} /></div>}
           </div>
-          <div style={{ ...S.card, background: hasPinned ? "linear-gradient(135deg, #F0FAF4 0%, #E8F5EC 100%)" : "#FEFDFB", border: hasPinned ? "1px solid #A7D5B8" : "1px dashed #DDD5CA", cursor: hasPinned ? "default" : "pointer" }} onClick={() => { if (!hasPinned) setShowPinPicker(true); }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: hasPinned ? 12 : 0 }}>
-              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.15em", color: hasPinned ? PINE : "#B0A89E" }}>{"\u{1F4CC}"} Pinned Focus</div>
-              {hasPinned && <button onClick={e => { e.stopPropagation(); setShowPinPicker(true); }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, color: "#8B7E74", fontFamily: "'EB Garamond', Georgia, serif" }}>Change</button>}
+          <div style={{ ...S.card, background: hasPinnedForToday ? "linear-gradient(135deg, #F0FAF4 0%, #E8F5EC 100%)" : "#FEFDFB", border: hasPinnedForToday ? "1px solid #A7D5B8" : "1px dashed #DDD5CA", cursor: hasPinnedForToday ? "default" : "pointer" }} onClick={() => { if (!hasPinnedForToday) setShowPinPicker(true); }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: hasPinnedForToday ? 12 : 0 }}>
+              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.15em", color: hasPinnedForToday ? PINE : "#B0A89E" }}>{"\u{1F4CC}"} Pinned Focus</div>
+              {hasPinnedForToday && <button onClick={e => { e.stopPropagation(); setShowPinPicker(true); }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, color: "#8B7E74", fontFamily: "'EB Garamond', Georgia, serif" }}>Change</button>}
             </div>
-            {hasPinned ? (
+            {hasPinnedForToday ? (
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}><span style={{ fontSize: 28 }}>{pinnedValue.emoji}</span><div><div style={{ fontSize: 22, fontWeight: 600, color: PINE }}>{pinnedValue.name}</div><div style={{ fontSize: 14, color: "#8B7E74", fontStyle: "italic" }}>{pinnedValue.description}</div></div></div>
             ) : (
-              <div style={{ fontSize: 15, color: "#8B7E74", textAlign: "center", padding: "8px 0" }}>{pinnedValue && pinnedValue.id === focusValue.id ? pinnedValue.name + " is already your rotating focus this week \u2713" : "Tap to pin a value for extra focus"}</div>
+              <div style={{ fontSize: 15, color: "#8B7E74", textAlign: "center", padding: "8px 0" }}>{pinnedValue && pinnedValue.id === focusValueForToday.id ? pinnedValue.name + " is already your rotating focus this week \u2713" : "Tap to pin a value for extra focus"}</div>
             )}
           </div>
           <div style={S.card}>
@@ -371,16 +412,18 @@
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><span style={{ fontSize: 16 }}>Today's check-in</span><span style={{ fontSize: 22, fontWeight: 600, color: "#D97706" }}>{savedEntries[today].rotatingScore}/10</span></div>
                 {savedEntries[today].rotatingMoment && <div style={{ fontSize: 14, color: "#6B5E52", marginTop: 6, fontStyle: "italic", lineHeight: 1.5 }}>"{savedEntries[today].rotatingMoment}"</div>}
-                <button onClick={() => setView("daily")} style={{ ...S.btn(false), marginTop: 12, width: "100%", textAlign: "center" }}>Edit today's entry</button>
+                <button onClick={() => openDailyForDate(today)} style={{ ...S.btn(false), marginTop: 12, width: "100%", textAlign: "center" }}>Edit today's entry</button>
               </div>
-            ) : (<button onClick={() => setView("daily")} style={{ ...S.primary, marginTop: 4 }}>Begin today's check-in</button>)}
+            ) : (<button onClick={() => openDailyForDate(today)} style={{ ...S.primary, marginTop: 4 }}>Begin today's check-in</button>)}
           </div>
           {isSunday && <div style={{ ...S.card, border: "1px solid #C4B5A0", background: "#FEFCF8" }}><div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.15em", color: "#D97706", marginBottom: 8 }}>{"\u2600\uFE0F"} Sunday Values Review</div><div style={{ fontSize: 16, marginBottom: 12, lineHeight: 1.5 }}>Time for your weekly reflection.</div><button onClick={() => setView("sunday")} style={S.primary}>Start Sunday Review</button></div>}
           <div style={S.card}><div style={S.label}>This Week</div>
             <div style={{ display: "flex", gap: 4 }}>
-              {weekDates.map((d, i) => { const sc = savedEntries[d]?.rotatingScore; const it = d === today; return (
-                <div key={d} style={{ flex: 1, textAlign: "center" }}><div style={{ fontSize: 11, color: it ? "#D97706" : "#B0A89E", fontWeight: it ? 700 : 400, marginBottom: 6 }}>{["M","T","W","T","F","S","S"][i]}</div>
-                <div style={{ width: 36, height: 36, borderRadius: 8, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 600, background: sc ? (sc >= 7 ? "#FEF3C7" : sc >= 4 ? "#FFF8ED" : "#FEE2E2") : (it ? "#F5F0E8" : "#FAF7F2"), color: sc ? (sc >= 7 ? "#92400E" : sc >= 4 ? "#B45309" : "#991B1B") : "#CCC5BB", border: it ? "2px solid #D97706" : "1px solid #EDE8E0" }}>{sc || "\u00B7"}</div></div>
+              {weekDates.map((d, i) => { const sc = savedEntries[d]?.rotatingScore; const it = d === today; const canTap = d <= today; return (
+                <div key={d} style={{ flex: 1, textAlign: "center", cursor: canTap ? "pointer" : "default" }} onClick={() => canTap && openDailyForDate(d)}>
+                  <div style={{ fontSize: 11, color: it ? "#D97706" : "#B0A89E", fontWeight: it ? 700 : 400, marginBottom: 6 }}>{["M","T","W","T","F","S","S"][i]}</div>
+                  <div style={{ width: 36, height: 36, borderRadius: 8, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 600, background: sc ? (sc >= 7 ? "#FEF3C7" : sc >= 4 ? "#FFF8ED" : "#FEE2E2") : (it ? "#F5F0E8" : "#FAF7F2"), color: sc ? (sc >= 7 ? "#92400E" : sc >= 4 ? "#B45309" : "#991B1B") : "#CCC5BB", border: it ? "2px solid #D97706" : "1px solid #EDE8E0" }}>{sc || "\u00B7"}</div>
+                </div>
               ); })}
             </div>
           </div>
@@ -392,37 +435,59 @@
         </React.Fragment>
       );
 
-      const renderDaily = () => (
-        <React.Fragment>
-          <div style={{ paddingTop: 48, paddingBottom: 8 }}><button onClick={() => setView("home")} style={S.back}>{"\u2190"} Back</button><div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.15em", color: "#B0A89E", marginBottom: 4 }}>{formatDate(today)} {"\u00B7"} Daily Check-in</div></div>
-          <div style={{ ...S.card, marginTop: 8, borderLeft: "3px solid #D97706" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}><span style={{ fontSize: 22 }}>{focusValue.emoji}</span><div><div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", color: "#B0A89E" }}>Rotating Focus</div><div style={{ fontSize: 20, fontWeight: 600, color: "#D97706" }}>{focusValue.name}</div></div></div>
-            <div style={{ fontSize: 15, marginBottom: 12, lineHeight: 1.5 }}>How well did you live <strong>{focusValue.name}</strong> today?</div>
-            <ScoreSlider value={dailyEntry.rotatingScore} onChange={v => setDailyEntry(p => ({ ...p, rotatingScore: v }))} />
-            <div style={{ fontSize: 15, marginBottom: 8, marginTop: 16, lineHeight: 1.5 }}>One moment where <strong>{focusValue.name}</strong> showed up {"\u2014"} or was absent.</div>
-            <textarea value={dailyEntry.rotatingMoment} onChange={e => setDailyEntry(p => ({ ...p, rotatingMoment: e.target.value }))} placeholder="Be specific..." style={S.textarea} />
-          </div>
-          {hasPinned && (
-            <div style={{ ...S.card, borderLeft: "3px solid " + PINE }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}><span style={{ fontSize: 22 }}>{pinnedValue.emoji}</span><div><div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", color: "#B0A89E" }}>{"\u{1F4CC}"} Pinned Focus</div><div style={{ fontSize: 20, fontWeight: 600, color: PINE }}>{pinnedValue.name}</div></div></div>
-              <div style={{ fontSize: 15, marginBottom: 12, lineHeight: 1.5 }}>How well did you live <strong>{pinnedValue.name}</strong> today?</div>
-              <ScoreSlider value={dailyEntry.pinnedScore} onChange={v => setDailyEntry(p => ({ ...p, pinnedScore: v }))} color={PINE} />
-              <div style={{ fontSize: 15, marginBottom: 8, marginTop: 16, lineHeight: 1.5 }}>One moment where <strong>{pinnedValue.name}</strong> showed up {"\u2014"} or was absent.</div>
-              <textarea value={dailyEntry.pinnedMoment} onChange={e => setDailyEntry(p => ({ ...p, pinnedMoment: e.target.value }))} placeholder="Be specific..." style={S.textarea} />
+      const renderDaily = () => {
+        const canGoBack = true;
+        const canGoForward = selectedDate < today;
+
+        return (
+          <React.Fragment>
+            <div style={{ paddingTop: 48, paddingBottom: 8 }}>
+              <button onClick={() => { setView("home"); setSelectedDate(today); }} style={S.back}>{"\u2190"} Back</button>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+                <button onClick={() => setSelectedDate(addDays(selectedDate, -1))} style={S.navArrow}>{"\u2190"}</button>
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.15em", color: "#B0A89E" }}>
+                    {isSelectedToday ? "Today" : formatDate(selectedDate)} {"\u00B7"} Daily Check-in
+                  </div>
+                  {!isSelectedToday && <div style={{ fontSize: 13, color: "#D97706", marginTop: 2 }}>{formatDate(selectedDate)}</div>}
+                </div>
+                <button onClick={() => canGoForward && setSelectedDate(addDays(selectedDate, 1))} style={canGoForward ? S.navArrow : S.navArrowDisabled}>{"\u2192"}</button>
+              </div>
+              {isEditingExisting && (
+                <div style={{ textAlign: "center", fontSize: 13, color: "#059669", fontStyle: "italic", marginTop: 4 }}>
+                  Editing existing entry
+                </div>
+              )}
             </div>
-          )}
-          <button onClick={doSaveDaily} disabled={saving} style={{ ...S.primary, opacity: saving ? 0.7 : 1 }}>{saving ? "Saving..." : "Save Check-in"}</button>
-          {showSaved && <div style={{ textAlign: "center", color: "#059669", marginTop: 12, fontSize: 15, fontWeight: 500 }}>{"\u2713"} Saved</div>}
-        </React.Fragment>
-      );
+            <div style={{ ...S.card, marginTop: 8, borderLeft: "3px solid #D97706" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}><span style={{ fontSize: 22 }}>{focusValueForSelected.emoji}</span><div><div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", color: "#B0A89E" }}>Rotating Focus</div><div style={{ fontSize: 20, fontWeight: 600, color: "#D97706" }}>{focusValueForSelected.name}</div></div></div>
+              <div style={{ fontSize: 15, marginBottom: 12, lineHeight: 1.5 }}>How well did you live <strong>{focusValueForSelected.name}</strong> {isSelectedToday ? "today" : "that day"}?</div>
+              <ScoreSlider value={dailyEntry.rotatingScore} onChange={v => setDailyEntry(p => ({ ...p, rotatingScore: v }))} />
+              <div style={{ fontSize: 15, marginBottom: 8, marginTop: 16, lineHeight: 1.5 }}>One moment where <strong>{focusValueForSelected.name}</strong> showed up {"\u2014"} or was absent.</div>
+              <textarea value={dailyEntry.rotatingMoment} onChange={e => setDailyEntry(p => ({ ...p, rotatingMoment: e.target.value }))} placeholder="Be specific..." style={S.textarea} />
+            </div>
+            {hasPinnedForSelected && (
+              <div style={{ ...S.card, borderLeft: "3px solid " + PINE }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}><span style={{ fontSize: 22 }}>{pinnedValue.emoji}</span><div><div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", color: "#B0A89E" }}>{"\u{1F4CC}"} Pinned Focus</div><div style={{ fontSize: 20, fontWeight: 600, color: PINE }}>{pinnedValue.name}</div></div></div>
+                <div style={{ fontSize: 15, marginBottom: 12, lineHeight: 1.5 }}>How well did you live <strong>{pinnedValue.name}</strong> {isSelectedToday ? "today" : "that day"}?</div>
+                <ScoreSlider value={dailyEntry.pinnedScore} onChange={v => setDailyEntry(p => ({ ...p, pinnedScore: v }))} color={PINE} />
+                <div style={{ fontSize: 15, marginBottom: 8, marginTop: 16, lineHeight: 1.5 }}>One moment where <strong>{pinnedValue.name}</strong> showed up {"\u2014"} or was absent.</div>
+                <textarea value={dailyEntry.pinnedMoment} onChange={e => setDailyEntry(p => ({ ...p, pinnedMoment: e.target.value }))} placeholder="Be specific..." style={S.textarea} />
+              </div>
+            )}
+            <button onClick={doSaveDaily} disabled={saving} style={{ ...S.primary, opacity: saving ? 0.7 : 1 }}>{saving ? "Saving..." : isEditingExisting ? "Update Check-in" : "Save Check-in"}</button>
+            {showSaved && <div style={{ textAlign: "center", color: "#059669", marginTop: 12, fontSize: 15, fontWeight: 500 }}>{"\u2713"} Saved</div>}
+          </React.Fragment>
+        );
+      };
 
       const renderSunday = () => (
         <React.Fragment>
-          <div style={{ paddingTop: 48, paddingBottom: 8 }}><button onClick={() => setView("home")} style={S.back}>{"\u2190"} Back</button><div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.15em", color: "#D97706", marginBottom: 4 }}>{"\u2600\uFE0F"} Sunday Values Review</div><h2 style={{ fontSize: 26, fontWeight: 400, margin: "4px 0 0", fontStyle: "italic" }}>Week of {focusValue.name}</h2></div>
+          <div style={{ paddingTop: 48, paddingBottom: 8 }}><button onClick={() => setView("home")} style={S.back}>{"\u2190"} Back</button><div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.15em", color: "#D97706", marginBottom: 4 }}>{"\u2600\uFE0F"} Sunday Values Review</div><h2 style={{ fontSize: 26, fontWeight: 400, margin: "4px 0 0", fontStyle: "italic" }}>Week of {focusValueForToday.name}</h2></div>
           <div style={{ ...S.card, marginTop: 16 }}>
             <div style={S.label}>Section 1 {"\u00B7"} Focus Value Retrospective</div>
             {weekScores.length > 0 && <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 16, padding: 12, background: "#FFFBF0", borderRadius: 8 }}><Sparkline scores={weekScores} /><div style={{ fontSize: 14, color: "#6B5E52" }}>Avg: <strong style={{ color: "#D97706" }}>{(weekScores.reduce((a, b) => a + b, 0) / weekScores.length).toFixed(1)}</strong></div></div>}
-            <div style={{ fontSize: 15, marginBottom: 8, lineHeight: 1.5 }}>Looking back at your week of <strong>{focusValue.name}</strong>, what's the single most important thing you learned or noticed?</div>
+            <div style={{ fontSize: 15, marginBottom: 8, lineHeight: 1.5 }}>Looking back at your week of <strong>{focusValueForToday.name}</strong>, what's the single most important thing you learned or noticed?</div>
             <textarea value={sundayReview.learned} onChange={e => setSundayReview(p => ({ ...p, learned: e.target.value }))} placeholder="What stood out?" style={S.textarea} />
             <div style={{ fontSize: 15, marginBottom: 8, marginTop: 16, lineHeight: 1.5 }}>What's one thing you'd do differently next week?</div>
             <textarea value={sundayReview.differently} onChange={e => setSundayReview(p => ({ ...p, differently: e.target.value }))} placeholder="One concrete change..." style={{ ...S.textarea, minHeight: 60 }} />
@@ -433,7 +498,7 @@
             {values.map(v => (
               <div key={v.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 0", borderBottom: "1px solid #F5F0E8" }}>
                 <span style={{ fontSize: 16, width: 24 }}>{v.emoji}</span>
-                <span style={{ fontSize: 14, flex: 1, color: v.id === focusValue.id ? "#D97706" : v.id === pinnedValueId ? PINE : "#6B5E52", fontWeight: (v.id === focusValue.id || v.id === pinnedValueId) ? 600 : 400 }}>{v.name}</span>
+                <span style={{ fontSize: 14, flex: 1, color: v.id === focusValueForToday.id ? "#D97706" : v.id === pinnedValueId ? PINE : "#6B5E52", fontWeight: (v.id === focusValueForToday.id || v.id === pinnedValueId) ? 600 : 400 }}>{v.name}</span>
                 <div style={{ display: "flex", gap: 2 }}>
                   {[1,2,3,4,5,6,7,8,9,10].map(n => (
                     <button key={n} onClick={() => setSundayReview(p => ({ ...p, pulseScores: { ...p.pulseScores, [v.name]: n } }))}
@@ -511,9 +576,10 @@
                     const sc = wr ? entry.rotatingScore : (wp ? entry.pinnedScore : entry.rotatingScore);
                     const mo = wr ? entry.rotatingMoment : (wp ? entry.pinnedMoment : entry.rotatingMoment);
                     return (
-                      <div key={entry.date} style={{ ...S.card, padding: "16px 20px" }}>
+                      <div key={entry.date} style={{ ...S.card, padding: "16px 20px", cursor: "pointer" }} onClick={() => openDailyForDate(entry.date)}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}><div><span style={{ fontSize: 13, color: "#8B7E74" }}>{formatDate(entry.date)}</span> <span style={{ fontSize: 11, color: wp && !wr ? PINE : "#D97706" }}>{wp && !wr ? "pinned" : "rotating"}</span></div><span style={{ fontSize: 18, fontWeight: 600, color: "#D97706" }}>{sc}/10</span></div>
                         {mo && <div style={{ fontSize: 14, color: "#6B5E52", fontStyle: "italic", lineHeight: 1.5 }}>"{mo}"</div>}
+                        <div style={{ fontSize: 11, color: "#B0A89E", marginTop: 8 }}>Tap to edit</div>
                       </div>
                     );
                   })}
@@ -574,7 +640,7 @@
           {showPinPicker && renderPinPicker()}
           <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "rgba(250,247,242,0.95)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)", borderTop: "1px solid #EDE8E0", display: "flex", justifyContent: "center", gap: 4, padding: "8px 16px calc(12px + env(safe-area-inset-bottom))", maxWidth: 480, margin: "0 auto" }}>
             <button onClick={() => setView("home")} style={S.nav(view === "home")}>Home</button>
-            <button onClick={() => setView("daily")} style={S.nav(view === "daily")}>Check-in</button>
+            <button onClick={() => { setSelectedDate(today); setView("daily"); }} style={S.nav(view === "daily")}>Check-in</button>
             <button onClick={() => setView("sunday")} style={S.nav(view === "sunday")}>Sunday</button>
             <button onClick={() => setView("history")} style={S.nav(view === "history")}>History</button>
             <button onClick={() => setView("insights")} style={S.nav(view === "insights")}>Insights</button>
